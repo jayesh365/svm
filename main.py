@@ -45,7 +45,7 @@ def train(X, y):
     lr = 0.001
     losses = []
     # define number of epochs
-    epochs = 5000
+    epochs = 500
     for _ in range(epochs):
         for i, x_i in enumerate(X):
             # calculate the squared hinge loss
@@ -60,14 +60,57 @@ def train(X, y):
                 w.grad.data.zero_()
                 b.grad.data.zero_()
                 losses.append(loss.data.detach().numpy())
-    print(b.data)
     return w.data, b.data, losses
 
 
+def decision_plane(X, w, b):
+
+    # apply kernel trick
+    X = kernel_trick(X)
+
+    # get the min and max values of the data
+    min_x = X[:, 0].min() - 1
+    max_x = X[:, 0].max() + 1
+
+    min_y = X[:, 1].min() - 1
+    max_y = X[:, 1].max() + 1
+
+    # create a meshgrid of points with the above min and max values
+    xx, yy = np.meshgrid(np.arange(min_x, max_x, 0.1),
+                        np.arange(min_y, max_y, 0.1))
+
+    # calculate the decision boundary
+    zz = (-w[0] * xx - w[1] * yy + b) / w[2]
+
+    return xx ,yy, zz
+
+
+def margin(X, w, b):
+    ''' returns the margin '''
+
+    # calculate the distance from the decision plane to the closest vectors
+    # calcualte the margin
+    w_normalized = w / np.linalg.norm(w)
+    distance = np.abs(np.dot(X, w_normalized.detach().numpy()) - b.detach().numpy())
+    margin = 1/np.max(distance)
+    return margin
+
+
+def _support_vectors(X, w, b):
+    ''' returns the support vectors '''
+
+    marg = margin(X, w, b)
+    predictions = predict(X, w, b)
+    support_vectors_inds = []
+    for ind, decision in enumerate(predictions):
+        # get the vectors within the margin of the decision plane
+        if abs(decision) <= marg:
+            support_vectors_inds.append(ind)
+    return support_vectors_inds
 
 def predict(X, w, b):
     X = torch.tensor(X, dtype=torch.float32)
-    return torch.sign(torch.dot(w, X) - b)
+    return np.dot(X, w) - b.detach().numpy()
 
 if __name__ == '__main__':
     # generate samples from scikit learn to create clusters with 4 centers and 2 features
@@ -75,27 +118,29 @@ if __name__ == '__main__':
     # X, y = generate_samples_linear(100)
 
     X_ = kernel_trick(X)
+    # X = kernel_trick(X)
 
 
     ax = plt.figure().add_subplot(projection='3d')
-    ax.scatter3D(X_[:, 0], X_[:, 1], X_[:, 2], c=y)
+    # ax.scatter3D(X_[:, 0], X_[:, 1], X_[:, 2], c=y, cmap='autumn')
 
     # plt.show()
 
     output = train(X_, y)
-    
-    w, b = output[0], output[1]
-    loss = output[2]
+    sv_i = _support_vectors(X_, output[0], output[1])
+    s_v = X_[sv_i]
 
-    slope = -w[0]/w[1]
-    intercept = -b/w[1]
+    xx, yy, zz = decision_plane(X, output[0], output[1])
+    ax.plot_surface(xx, yy, zz, alpha=0.2)
+    ax.scatter3D(s_v[:, 0], s_v[:, 1], s_v[:, 2],s= 2.5,cmap='winter', c=y[sv_i])
+    plt.show()
+    # w, b = output[0], output[1]
+    # loss = output[2]
+
+    # slope = -w[0]/w[1]
+    # intercept = -b/w[1]
     # print(slope.data, intercept.data)
     # print(np.floor(min(X[:, 0])), np.ceil(max(X[:, 1])))
-    min_x = X_[:, 0].min() - 1
-    max_x = X_[:, 0].max() + 1
-
-    min_y = X_[:, 1].min() - 1
-    max_y = X_[:, 1].max() + 1
     # x = np.arange(min_x, max_x, 0.1)
     # print(x)
     # x = np.arange(-0.05,0.05, 0.001)
@@ -124,14 +169,9 @@ if __name__ == '__main__':
     # plt.plot(loss, c='red')
     # plt.show()
 
-    xx, yy = np.meshgrid(np.arange(min_x, max_x, 0.1),
-                        np.arange(min_y, max_y, 0.1))
-    
-    zz = (-w.data[0] * xx - w.data[1] * yy + b.data) / w.data[2]
+    # ax.plot_surface(xx, yy, zz, alpha=0.5)
 
-    ax.plot_surface(xx, yy, zz, alpha=0.5)
-
-    plt.show()
+    # plt.show()
 
 
 
